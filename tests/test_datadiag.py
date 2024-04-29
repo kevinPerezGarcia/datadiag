@@ -1,0 +1,1 @@
+from datadiag import datadiag
