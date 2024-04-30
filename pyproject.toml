@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "datadiag"
-version = "0.1.0"
+version = "0.2.0"
 description = "Diagnose common issues for pandas DataFrame datasets."
 authors = ["Kevin Perez Garcia"]
 license = "MIT"
@@ -9,6 +9,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = ">=3.9"
 openpyxl = ">=3.1.2"
+pandas = ">=2.2.2"
 
 [tool.poetry.dev-dependencies]
 
