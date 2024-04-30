@@ -1,75 +1,132 @@
-from openpyxl import Workbook, load_workbook
-from openpyxl.utils import get_column_letter
+import pandas as pd
 
-def dataframe_to_columns(df):
-    """
-    Convierte un DataFrame en una lista de listas donde cada lista interna contiene el nombre de la columna y sus valores correspondientes.
+class DataDiagnoser:
+    def __init__(self, dataframe, first_columns=None, last_columns=None, ignore_columns=None):
+        """
+        Inicializa la clase DataDiagnoser con un DataFrame de Pandas y los criterios de ordenación de columnas.
+        
+        Args:
+        dataframe (pandas.DataFrame): El DataFrame de Pandas que se utilizará para el diagnóstico.
+        first_columns (list): Lista de nombres de columnas que se colocarán al principio del DataFrame.
+        last_columns (list): Lista de nombres de columnas que se colocarán al final del DataFrame.
+        ignore_columns (list): Lista de nombres de columnas que se ignorarán durante el diagnóstico.
+        """
+        self.dataframe = dataframe
+        self.first_columns = first_columns if first_columns else []
+        self.last_columns = last_columns if last_columns else []
+        self.ignore_columns = ignore_columns if ignore_columns else []
 
-    Args:
-    - df: DataFrame de Pandas
+        # Ordenar el DataFrame al inicializar la clase
+        self.sorted_dataframe = self._sort_dataframe()
 
-    Returns:
-    - variable_value_lists: Lista de listas que contienen el nombre de la columna y sus valores
-    """
-    # Inicializar la lista de listas
-    variable_value_lists = []
+    def _sort_dataframe(self):
+        """
+        Ordena las columnas del DataFrame según los criterios especificados.
+        
+        Returns:
+        pandas.DataFrame: El DataFrame con las columnas ordenadas según los criterios especificados.
+        """
+        all_columns = list(self.dataframe.columns)
+        remaining_columns = [col for col in all_columns if col not in self.first_columns + self.last_columns]
 
-    # Iterar sobre las columnas del DataFrame
-    for column_name in df.columns:
-        # Obtener los valores de la columna y convertirlos en una lista
-        values = df[column_name].tolist()
-        # Crear una lista que contenga el nombre de la columna seguido de sus valores
-        column_values_list = [column_name] + values
-        # Agregar la lista de valores de la columna a la lista principal
-        variable_value_lists.append(column_values_list)
+        sorted_columns = self.first_columns + remaining_columns + self.last_columns
+        sorted_dataframe = self.dataframe[sorted_columns]
 
-    return variable_value_lists
+        return sorted_dataframe
 
+    def diagnose_missing_values(self):
+        """
+        Identifica y cuenta los valores faltantes en cada columna del DataFrame.
+        
+        Returns:
+        pandas.DataFrame: Un DataFrame que contiene la frecuencia absoluta y porcentual de valores faltantes en cada columna.
+        """
+        # Filtrar las columnas a ignorar
+        df_to_diagnose = self.sorted_dataframe.drop(columns=self.ignore_columns)
+        
+        missing_values_abs = df_to_diagnose.isnull().sum()
+        missing_values_pct = (missing_values_abs / len(df_to_diagnose)) * 100
+        
+        # Crear un DataFrame con las frecuencias absolutas y porcentuales
+        missing_values_df = pd.DataFrame({
+            'Missing Values Absolute': missing_values_abs,
+            'Missing Values Percentage': missing_values_pct
+        })
+        
+        return missing_values_df
 
-def report_df_to_excel(df, filename, sheet_name='Sheet1', num_col=0, resize_columns=True):
-    """
-    Guarda un DataFrame en un archivo Excel, agregando sus columnas al final de la hoja de cálculo especificada.
+    def diagnose_data_types(self):
+        """
+        Determina el tipo de datos de cada columna del DataFrame.
+        
+        Returns:
+        pandas.Series: Una Serie donde el índice son los nombres de las columnas y los valores son los tipos de datos correspondientes.
+        """
+        # Filtrar las columnas a ignorar
+        df_to_diagnose = self.sorted_dataframe.drop(columns=self.ignore_columns)
+        
+        data_types = df_to_diagnose.dtypes
+        return data_types
+    
+    def diagnose_unique_values(self):
+        """
+        Cuenta los valores únicos en cada columna del DataFrame y calcula el porcentaje de valores únicos respecto al total de registros.
+        
+        Returns:
+        pandas.DataFrame: Un DataFrame que contiene la cantidad de valores únicos y el porcentaje de valores únicos en cada columna.
+        """
+        # Filtrar las columnas a ignorar
+        df_to_diagnose = self.sorted_dataframe.drop(columns=self.ignore_columns)
+        
+        unique_values_count = df_to_diagnose.nunique()
+        unique_values_pct = (unique_values_count / len(df_to_diagnose)) * 100
+        
+        # Crear un DataFrame con las cantidades y porcentajes de valores únicos
+        unique_values_df = pd.DataFrame({
+            'Unique Values Count': unique_values_count,
+            'Unique Values Percentage': unique_values_pct
+        })
+        
+        return unique_values_df
 
-    Args:
-    - df: DataFrame de Pandas que se va a guardar.
-    - filename: Ruta del archivo Excel donde se guardará el DataFrame.
-    - sheet_name: Nombre de la hoja de cálculo en la que se agregarán los datos del DataFrame.
-    - resize_columns: Booleano que indica si se deben redimensionar automáticamente las columnas para ajustarse al contenido.
+    def diagnose_min_max_values(self):
+        """
+        Calcula el valor mínimo y máximo en cada columna del DataFrame, si la columna es numérica.
+        Si la columna no es numérica, decide qué información adicional sería más útil.
+        
+        Returns:
+        pandas.DataFrame: Un DataFrame que contiene el valor mínimo y máximo en cada columna numérica.
+        """
+        # Filtrar las columnas a ignorar
+        df_to_diagnose = self.sorted_dataframe.drop(columns=self.ignore_columns)
+        
+        min_max_values = {}
+        for column in df_to_diagnose.columns:
+            if pd.api.types.is_numeric_dtype(df_to_diagnose[column]):
+                min_value = df_to_diagnose[column].min()
+                max_value = df_to_diagnose[column].max()
+                min_max_values[column] = {'Min': min_value, 'Max': max_value}
+            else:
+                # Si la columna no es numérica, decide qué información adicional sería más útil.
+                min_max_values[column] = 'Not numeric'
+        
+        # Crear un DataFrame con los valores mínimos y máximos
+        min_max_values_df = pd.DataFrame(min_max_values).T
+        
+        return min_max_values_df
 
-    Returns:
-    - None
-    """
-
-    try:
-        # Intenta abrir el archivo existente
-        wb = load_workbook(filename)
-        ws = wb.active
-    except FileNotFoundError:
-        # Si el archivo no existe, crea uno nuevo
-        wb = Workbook()
-        ws = wb.active
-        ws.title = sheet_name
-
-    # Convierte el DataFrame en columnas y las agrega al libro de trabajo
-    column_df = dataframe_to_columns(df)
-    ws.append_column(column_df, column=num_col)
-
-    # Redimensiona las columnas si se solicita
-    if resize_columns:
-        for col in ws.columns:
-            max_length = 0
-            column = col[0].column_letter  # Obtiene la letra de la columna
-            for cell in col:
-                try:  # Necesario porque algunas celdas pueden estar vacías
-                    cell_value_length = len(str(cell.value))
-                    if cell_value_length > max_length:
-                        max_length = cell_value_length
-                except:
-                    pass
-            # Ajusta el ancho de la columna
-            adjusted_width = (max_length + 2) * 1.2
-            ws.column_dimensions[column].width = adjusted_width
-
-    # Guarda y cierra el libro de trabajo
-    wb.save(filename)
-    wb.close()
+    def diagnose(self):
+        """
+        Combina los resultados de los diagnósticos en un solo DataFrame.
+        
+        Returns:
+        pandas.DataFrame: Un DataFrame que contiene los resultados de los diagnósticos.
+        """
+        data_types = self.diagnose_data_types().to_frame(name='Data Types')
+        missing_values = self.diagnose_missing_values()
+        unique_values = self.diagnose_unique_values()
+        min_max_values = self.diagnose_min_max_values()
+        # Aquí puedes agregar más resultados de diagnóstico según sea necesario
+        
+        combined_results = pd.concat([data_types, missing_values, unique_values, min_max_values], axis=1)
+        return combined_results
